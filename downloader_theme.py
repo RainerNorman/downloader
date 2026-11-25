@@ -2,18 +2,21 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import ttk
 
-from PIL import Image, ImageDraw, ImageFilter, ImageTk
+from PIL import Image, ImageDraw, ImageTk
 
 
-CANVAS = "#EEF4F6"
+CANVAS = "#F1F1F3"
 SURFACE = "#FFFFFF"
-INK = "#18313B"
-MUTED = "#49636F"
-BORDER = "#D7E4E8"
-FIELD = "#F5F9FA"
-RAIL = "#C6F1F4"
-ACCENT = "#0A7678"
-SELECTION = "#CAEDEB"
+INK = "#19191C"
+MUTED = "#57575E"
+BORDER = "#DDDDDF"
+FIELD = "#FAFAFB"
+FIELD_BORDER = "#909097"
+RAIL = "#18181A"
+RAIL_TEXT = "#E7E7EB"
+RAIL_MUTED = "#A8A8B0"
+ACCENT = "#B82031"
+SELECTION = "#DEDEE5"
 FONT = "Segoe UI"
 DISPLAY_FONT = "Segoe UI Variable Display"
 
@@ -30,152 +33,122 @@ def configure_theme(root):
     root.theme_images = []
     style.configure(".", font=(FONT, 11), background=SURFACE, foreground=INK)
     style.configure("Workspace.TFrame", background=CANVAS)
-    style.configure("Rail.TFrame", background=CANVAS)
-    style.configure("Card.TFrame", background=CANVAS)
-    style.configure("Brand.TLabel", background=RAIL, foreground=INK, font=(FONT, 14, "bold"))
-    style.configure("RailTitle.TLabel", background=RAIL, foreground=MUTED, font=(FONT, 9, "bold"))
-    style.configure("Heading.TLabel", background=CANVAS, font=(DISPLAY_FONT, 27, "bold"))
+    style.configure("Rail.TFrame", background=RAIL)
+    style.configure("Brand.TLabel", background=RAIL, foreground=SURFACE, font=(FONT, 14, "bold"))
+    style.configure("RailTitle.TLabel", background=RAIL, foreground=RAIL_MUTED, font=(FONT, 9, "bold"))
+    style.configure("Heading.TLabel", background=CANVAS, font=(DISPLAY_FONT, 30, "bold"))
     style.configure("Intro.TLabel", background=CANVAS, foreground=MUTED)
     style.configure("FieldLabel.TLabel", font=(FONT, 10, "bold"))
     style.configure("Help.TLabel", foreground=MUTED, font=(FONT, 10))
-    style.configure("Percent.TLabel", foreground=ACCENT, font=(FONT, 10, "bold"))
+    style.configure("Status.TLabel", background=CANVAS, foreground=MUTED, font=(FONT, 10))
+    style.configure("Percent.TLabel", background=CANVAS, foreground=INK, font=(FONT, 10, "bold"))
 
-    _panel_surface(root, style)
+    _surface(root, style, "Panel.surface", 40, 12, (SURFACE, BORDER))
     style.layout("Card.TFrame", [("Panel.surface", {"sticky": "nswe"})])
-    _surface(root, style, "Rail.surface", 44, 16, (RAIL, "#AEE3E8"))
-    style.layout("Rail.TFrame", [("Rail.surface", {"sticky": "nswe"})])
 
-    _surface(root, style, "Navigation.surface", 36, 9, (RAIL, RAIL), [
-        ("focus", "#E2FAFC", "#318C93"),
-        ("selected", "#F3FDFD", "#A4DFE3"),
-        ("active", "#DDF7F9", "#B9E8EC"),
-    ], backdrop=RAIL)
+    _surface(root, style, "Navigation.surface", 36, 7, (RAIL, RAIL), [
+        ("selected focus", "#36363B", "#BEBEC6"),
+        ("focus", "#29292D", "#BEBEC6"),
+        ("selected", "#36363B", "#4F4F55"),
+        ("active", "#29292D", "#29292D"),
+    ], mark_selection=True)
     style.layout("Source.TRadiobutton", _layout("Navigation.surface", "Radiobutton"))
-    style.configure("Source.TRadiobutton", padding=(10, 8), background=RAIL, foreground=MUTED)
-    style.map("Source.TRadiobutton", foreground=[("selected", INK), ("active", INK)])
+    style.configure("Source.TRadiobutton", padding=(14, 9), background=RAIL, foreground=RAIL_TEXT)
+    style.map("Source.TRadiobutton", foreground=[("selected", SURFACE), ("active", SURFACE)])
 
-    _surface(root, style, "Secondary.surface", 40, 9, ("#EDF6F7", "#D6E7EA"), [
-        ("disabled", "#F0F3F4", "#DDE7EA"),
-        ("pressed", "#D5EBEE", "#A8D4DA"),
-        ("focus", "#ECF8FA", "#45999C"),
-        ("active", "#E1F2F4", "#BDDDE2"),
+    _surface(root, style, "Secondary.surface", 36, 7, (SURFACE, FIELD_BORDER), [
+        ("disabled", "#F2F2F3", BORDER),
+        ("focus", FIELD, INK),
+        ("pressed", "#E5E5E9", FIELD_BORDER),
+        ("active", "#F0F0F2", FIELD_BORDER),
     ])
     style.layout("TButton", _layout("Secondary.surface", "Button"))
-    style.configure("TButton", padding=(13, 7), foreground=INK)
-    style.map("TButton", foreground=[("disabled", "#677D87")])
+    style.configure("TButton", padding=(14, 9), foreground=INK)
+    style.map("TButton", foreground=[("disabled", MUTED)])
 
-    _surface(root, style, "Primary.surface", 44, 11, ("#87E7E4", "#64CFCE"), [
-        ("disabled", "#E3F0F1", "#D4E5E7"),
-        ("pressed", "#60CECA", "#48BAB7"),
-        ("focus", "#87E7E4", "#27777D"),
-        ("active", "#A2F0EC", "#69D2D1"),
+    _surface(root, style, "Primary.surface", 40, 8, (ACCENT, ACCENT), [
+        ("disabled", "#5B5B63", "#5B5B63"),
+        ("focus", ACCENT, "#23040A"),
+        ("pressed", "#821422", "#821422"),
+        ("active", "#A51828", "#A51828"),
     ])
     style.layout("Primary.TButton", _layout("Primary.surface", "Button"))
-    style.configure("Primary.TButton", padding=(15, 8), foreground="#123B44",
+    style.configure("Primary.TButton", padding=(16, 10), foreground=SURFACE,
                     font=(FONT, 11, "bold"))
-    style.map("Primary.TButton", foreground=[("disabled", MUTED)])
 
-    _surface(root, style, "Input.surface", 40, 9, (FIELD, BORDER), [
-        ("focus", FIELD, "#469FA4"),
+    _surface(root, style, "Input.surface", 36, 7, (FIELD, FIELD_BORDER), [
+        ("focus", SURFACE, INK),
     ])
-    _surface(root, style, "Input.focusSurface", 40, 9, (FIELD, "#469FA4"))
-    style.layout("Input.TFrame", [("Input.surface", {"sticky": "nswe"})])
-    style.layout("InputFocus.TFrame", [("Input.focusSurface", {"sticky": "nswe"})])
     style.layout("TEntry", [("Input.surface", {"sticky": "nswe", "children": [
         ("Entry.padding", {"sticky": "nswe", "children": [
             ("Entry.textarea", {"sticky": "nswe"}),
         ]}),
     ]})])
+    _combobox_arrow(root, style)
     style.layout("TCombobox", [("Input.surface", {"sticky": "nswe", "children": [
-        ("Combobox.downarrow", {"side": "right", "sticky": "ns"}),
+        ("CleanCombobox.downarrow", {"side": "right", "sticky": ""}),
         ("Combobox.padding", {"sticky": "nswe", "children": [
             ("Combobox.textarea", {"sticky": "nswe"}),
         ]}),
     ]})])
     for field_style in ("TEntry", "TCombobox"):
         style.configure(field_style, fieldbackground=FIELD, background=FIELD,
-                        padding=(11, 7), insertcolor=INK,
+                        padding=(12, 9), insertcolor=INK,
                         selectbackground=SELECTION, selectforeground=INK)
         style.map(field_style, fieldbackground=[("!disabled", FIELD)],
                   foreground=[("readonly", INK)])
-    style.configure("TCombobox", arrowcolor=MUTED, arrowsize=13, bordercolor=FIELD,
-                    lightcolor=FIELD, darkcolor=FIELD)
 
-    _surface(root, style, "Choice.surface", 34, 8, ("#F2F7F8", "#DBE7EA"), [
-        ("focus", "#E7F6F7", "#40989C"),
-        ("selected", "#DDF6F5", "#9CD8D8"),
-        ("active", "#E9F4F6", "#C9E2E6"),
+    _surface(root, style, "Choice.surface", 34, 7, (SURFACE, FIELD_BORDER), [
+        ("selected focus", INK, "#828289"),
+        ("focus", FIELD, INK),
+        ("selected", INK, INK),
+        ("active", "#F0F0F2", FIELD_BORDER),
     ])
-    _format_indicator(root, style)
     style.layout("Choice.TRadiobutton", _layout("Choice.surface", "Radiobutton"))
-    style.layout("Choice.TCheckbutton", _layout("Choice.surface", "Checkbutton", "Format.indicator"))
-    for name in ("Choice.TRadiobutton", "Choice.TCheckbutton"):
-        style.configure(name, padding=(12, 6), foreground=MUTED)
-        style.map(name, foreground=[("selected", ACCENT), ("active", INK)])
-
-    style.layout("Vertical.TScrollbar", [("Vertical.Scrollbar.trough", {"sticky": "ns",
-        "children": [("Vertical.Scrollbar.thumb", {"sticky": "nswe"})]})])
-    style.configure("Vertical.TScrollbar", background="#ACCDD1", troughcolor=FIELD, width=7,
-                    bordercolor=FIELD, lightcolor="#ACCDD1", darkcolor="#ACCDD1")
+    style.configure("Choice.TRadiobutton", padding=(12, 9), foreground=INK)
+    style.map("Choice.TRadiobutton", foreground=[("selected", SURFACE)])
 
 
-def _layout(surface, widget, indicator=None):
-    children = [(f"{widget}.label", {"sticky": "nswe"})]
-    if indicator:
-        children.insert(0, (indicator, {"side": "left", "sticky": ""}))
+def _layout(surface, widget):
     return [(surface, {"sticky": "nswe", "children": [
-        (f"{widget}.padding", {"sticky": "nswe", "children": children}),
+        (f"{widget}.padding", {"sticky": "nswe", "children": [(f"{widget}.label", {"sticky": "nswe"})]}),
     ]})]
 
 
-def _surface(root, style, name, size, radius, default, states=(), *, backdrop=None):
-    def render(fill, outline):
-        layer = Image.new("RGBA", (size * 4, size * 4), backdrop)
-        ImageDraw.Draw(layer).rounded_rectangle((0, 0, size * 4 - 1, size * 4 - 1),
-                                                radius=radius * 4, fill=fill, outline=outline, width=4)
+def _surface(root, style, name, size, radius, default, states=(), *, mark_selection=False):
+    def render(fill, outline, state=""):
+        layer = Image.new("RGBA", (size * 4, size * 4))
+        draw = ImageDraw.Draw(layer)
+        state_flags = state.split()
+        draw.rounded_rectangle((0, 0, size * 4 - 1, size * 4 - 1), radius=radius * 4,
+                               fill=fill, outline=outline, width=8 if "focus" in state_flags else 4)
+        if mark_selection and "selected" in state_flags:
+            draw.rectangle((16, 10, 23, size * 4 - 11), fill=RAIL_TEXT)
         photo = ImageTk.PhotoImage(layer.resize((size, size), Image.Resampling.LANCZOS),
                                    master=root)
         root.theme_images.append(photo)
         return photo
 
-    images = [(state, render(fill, outline)) for state, fill, outline in states]
+    images = [(state, render(fill, outline, state)) for state, fill, outline in states]
     style.element_create(name, "image", render(*default), *images,
                          border=radius + 1, padding=0, sticky="nswe")
 
 
-def _panel_surface(root, style):
-    layer = Image.new("RGBA", (192, 192))
-    ImageDraw.Draw(layer).rounded_rectangle((8, 13, 183, 182), radius=57, fill=(41, 81, 97, 35))
-    layer = layer.filter(ImageFilter.GaussianBlur(6))
-    ImageDraw.Draw(layer).rounded_rectangle((8, 4, 183, 175), radius=56,
-                                            fill=SURFACE, outline=BORDER, width=4)
-    photo = ImageTk.PhotoImage(layer.resize((48, 48), Image.Resampling.LANCZOS), master=root)
+def _combobox_arrow(root, style):
+    layer = Image.new("RGBA", (112, 72))
+    ImageDraw.Draw(layer).line([(30, 29), (47, 45), (64, 29)], fill=MUTED, width=6, joint="curve")
+    photo = ImageTk.PhotoImage(layer.resize((28, 18), Image.Resampling.LANCZOS), master=root)
     root.theme_images.append(photo)
-    style.element_create("Panel.surface", "image", photo, border=18, padding=0, sticky="nswe")
-
-
-def _format_indicator(root, style):
-    photos = []
-    for selected in (False, True):
-        layer = Image.new("RGBA", (88, 56))
-        draw = ImageDraw.Draw(layer)
-        draw.rounded_rectangle((1, 1, 53, 53), radius=11, outline=ACCENT if selected else "#7896A1",
-                               fill=ACCENT if selected else "#F7FBFC", width=4)
-        if selected:
-            draw.line([(14, 28), (23, 37), (40, 19)], fill=SURFACE, width=6, joint="curve")
-        photos.append(ImageTk.PhotoImage(layer.resize((22, 14), Image.Resampling.LANCZOS),
-                                        master=root))
-    root.theme_images.extend(photos)
-    style.element_create("Format.indicator", "image", photos[0], ("selected", photos[1]))
+    style.element_create("CleanCombobox.downarrow", "image", photo, sticky="")
 
 
 class ProgressTrack(tk.Canvas):
     def __init__(self, parent, variable):
-        super().__init__(parent, width=1, height=8, background=SURFACE,
+        super().__init__(parent, width=1, height=8, background=CANVAS,
                          borderwidth=0, highlightthickness=0)
         self.variable = variable
-        self.track = self.create_line(0, 0, 0, 0, width=5, fill="#E0EDEF", capstyle="round")
-        self.fill = self.create_line(0, 0, 0, 0, width=5, fill=ACCENT, capstyle="round")
+        self.track = self.create_line(0, 0, 0, 0, width=4, fill="#D9D9DF", capstyle="round")
+        self.fill = self.create_line(0, 0, 0, 0, width=4, fill=INK, capstyle="round")
         self.bind("<Configure>", self._update)
         self.trace = variable.trace_add("write", self._update)
         self.bind("<Destroy>", lambda _: variable.trace_remove("write", self.trace))
@@ -190,8 +163,8 @@ class ProgressTrack(tk.Canvas):
 
 def make_icons(root):
     with Image.open(Path(__file__).with_name("downloader.ico")) as ico:
-        brand = Image.new("RGBA", (47, 38))
-        brand.paste(ico.convert("RGBA").resize((38, 38), Image.Resampling.LANCZOS))
+        brand = Image.new("RGBA", (39, 30))
+        brand.paste(ico.convert("RGBA").resize((30, 30), Image.Resampling.LANCZOS))
 
     strokes = {
         "youtube": [[(3, 4), (17, 4), (17, 16), (3, 16), (3, 4)],
@@ -206,12 +179,14 @@ def make_icons(root):
         "pages_pdf": [[(7, 2), (17, 2), (17, 14)], [(3, 6), (13, 6), (13, 18), (3, 18), (3, 6)],
                       [(6, 10), (10, 10)], [(6, 14), (10, 14)]],
         "download": [[(10, 3), (10, 13)], [(6, 9), (10, 13), (14, 9)], [(3, 16), (17, 16)]],
+        "external": [[(11, 3), (17, 3), (17, 9)], [(17, 3), (9, 11)],
+                     [(8, 4), (4, 4), (4, 16), (16, 16), (16, 12)]],
     }
     icons = {"brand": ImageTk.PhotoImage(brand, master=root)}
     for name, paths in strokes.items():
         image = Image.new("RGBA", (80, 80))
         draw = ImageDraw.Draw(image)
-        color = "#18515B" if name == "download" else "#2D7480"
+        color = SURFACE if name in ("download", "external") else RAIL_TEXT
         for path in paths:
             draw.line([(x * 4, y * 4) for x, y in path], fill=color, width=6, joint="curve")
         padded = Image.new("RGBA", (27, 20))

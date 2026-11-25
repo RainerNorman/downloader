@@ -35,8 +35,8 @@ YOUTUBE_HOSTS = (
 )
 SOURCES = {
     "youtube": (
-        "YouTube", "Save a video or download its audio as MP3.", "Video link",
-        "Use Load qualities to see the resolutions available for this video.", "Download",
+        "YouTube", "Download video or MP3 audio from a YouTube link.", "Video link",
+        "", "Download",
     ),
     "telegram": (
         "Telegram", "Save pictures from a public Telegram post.", "Post link",
@@ -68,11 +68,14 @@ BROWSER_USER_AGENT = (
 
 
 class YouTubeDownloaderApp:
+    MIN_WIDTH = 820
+    MIN_HEIGHT = 560
+
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
         self.root.title("Downloader")
-        self.root.geometry("1040x615")
-        self.root.minsize(820, 600)
+        self.root.geometry("1016x608")
+        self.root.minsize(self.MIN_WIDTH, self.MIN_HEIGHT)
         configure_theme(root)
         self.icons = make_icons(root)
         root.iconphoto(True, self.icons["brand"])
@@ -87,7 +90,7 @@ class YouTubeDownloaderApp:
         self.quality_var = tk.StringVar(value="Best available")
         self.status_var = tk.StringVar(value="Ready")
         self.progress_var = tk.DoubleVar(value=0.0)
-        self.progress_text = tk.StringVar(value="0%")
+        self.progress_text = tk.StringVar()
         self.download_thread = None
         self.is_downloading = False
         self.is_loading_formats = False
@@ -100,45 +103,43 @@ class YouTubeDownloaderApp:
         self.source_var.trace_add("write", self._on_source_changed)
         self.mode_var.trace_add("write", self._on_mode_changed)
         self.url_var.trace_add("write", self._on_url_changed)
-        self.progress_var.trace_add(
-            "write", lambda *_: self.progress_text.set(f"{self.progress_var.get():.0f}%")
-        )
+        self.progress_var.trace_add("write", self._update_progress_text)
+        self.status_var.trace_add("write", self._update_progress_text)
         self._on_source_changed()
 
     def _build_ui(self) -> None:
         self.root.columnconfigure(1, weight=1)
         self.root.rowconfigure(0, weight=1)
 
-        rail = ttk.Frame(self.root, width=185, style="Rail.TFrame")
-        rail.grid(row=0, column=0, sticky="ns", padx=(12, 0), pady=12)
-        rail.pack_propagate(False)
+        rail = ttk.Frame(self.root, padding=(14, 26, 14, 18), style="Rail.TFrame")
+        rail.grid(row=0, column=0, sticky="ns")
         brand = ttk.Label(
             rail, text="Downloader", image=self.icons["brand"], compound="left",
             style="Brand.TLabel",
         )
-        brand.pack(anchor="w", padx=12, pady=(28, 33))
+        brand.pack(anchor="w", padx=(7, 14), pady=(0, 33))
         ttk.Label(rail, text="SOURCES", style="RailTitle.TLabel").pack(
-            anchor="w", padx=23, pady=(0, 9)
+            anchor="w", padx=13, pady=(0, 8)
         )
         for source, (name, *_details) in SOURCES.items():
             ttk.Radiobutton(
                 rail, text=name, image=self.icons[source], compound="left",
                 style="Source.TRadiobutton", value=source, variable=self.source_var,
-            ).pack(fill="x", padx=12, pady=3)
+            ).pack(fill="x", pady=(0, 4))
 
-        workspace = ttk.Frame(self.root, padding=(24, 23, 24, 18), style="Workspace.TFrame")
+        workspace = ttk.Frame(self.root, padding=(32, 30, 32, 22), style="Workspace.TFrame")
         workspace.grid(row=0, column=1, sticky="nsew")
         workspace.columnconfigure(0, weight=1)
-        workspace.rowconfigure(1, weight=1)
 
         heading = ttk.Frame(workspace, style="Workspace.TFrame")
-        heading.grid(row=0, column=0, sticky="ew", pady=(0, 16))
+        heading.grid(row=0, column=0, sticky="ew", pady=(0, 22))
         self.source_title = ttk.Label(heading, style="Heading.TLabel")
         self.source_title.pack(anchor="w")
-        self.source_intro = ttk.Label(heading, style="Intro.TLabel")
-        self.source_intro.pack(anchor="w", pady=(3, 0))
+        self.source_intro = ttk.Label(heading, style="Intro.TLabel", justify="left")
+        self.source_intro.pack(fill="x", pady=(4, 0))
+        heading.bind("<Configure>", lambda event: self.source_intro.configure(wraplength=event.width))
 
-        form = ttk.Frame(workspace, padding=(22, 18, 22, 21), style="Card.TFrame")
+        form = ttk.Frame(workspace, padding=(24, 22, 24, 22), style="Card.TFrame")
         form.grid(row=1, column=0, sticky="new")
         form.columnconfigure(0, weight=1)
 
@@ -146,21 +147,22 @@ class YouTubeDownloaderApp:
         self.url_label.grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 6))
         self.url_entry = ttk.Entry(form, textvariable=self.url_var)
         self.url_entry.grid(row=1, column=0, sticky="ew")
-
+        self.url_entry.bind("<Return>", lambda _: self.download_button.invoke())
 
         self.load_button = ttk.Button(form, text="Load qualities", command=self.load_qualities)
-        self.load_button.grid(row=1, column=1, sticky="ne", padx=(9, 0))
+        self.load_button.grid(row=1, column=1, sticky="ne", padx=(8, 0))
         self.pages_input_buttons = ttk.Frame(form)
         self.pages_input_buttons.grid(row=1, column=1, sticky="ne", padx=(9, 0))
         ttk.Button(self.pages_input_buttons, text="File…", command=self._choose_pages_file).pack(side="left")
         ttk.Button(self.pages_input_buttons, text="Folder…", command=self._choose_pages_folder).pack(
             side="left", padx=(5, 0)
         )
-        self.link_help_label = ttk.Label(form, style="Help.TLabel", wraplength=470, justify="left")
+        self.link_help_label = ttk.Label(form, style="Help.TLabel", justify="left")
         self.link_help_label.grid(row=2, column=0, columnspan=2, sticky="w", pady=(7, 0))
+        form.bind("<Configure>", lambda event: self.link_help_label.configure(wraplength=max(1, event.width - 48)))
 
         self.token_frame = ttk.Frame(form)
-        self.token_frame.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(17, 0))
+        self.token_frame.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(18, 0))
         self.token_frame.columnconfigure(0, weight=1)
         ttk.Label(self.token_frame, text="Sketchfab API token", style="FieldLabel.TLabel").grid(
             row=0, column=0, sticky="w", pady=(0, 6)
@@ -174,7 +176,7 @@ class YouTubeDownloaderApp:
         ).grid(row=1, column=1, padx=(9, 0))
 
         self.options_frame = ttk.Frame(form)
-        self.options_frame.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(17, 0))
+        self.options_frame.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(18, 0))
         self.options_frame.columnconfigure(1, weight=1)
         self.mode_group = ttk.Frame(self.options_frame)
         self.mode_group.grid(row=0, column=0, sticky="nw", padx=(0, 22))
@@ -201,26 +203,29 @@ class YouTubeDownloaderApp:
         self.quality_combo.grid(row=1, column=0, sticky="ew")
 
         self.folder_frame = ttk.Frame(form)
-        self.folder_frame.grid(row=5, column=0, columnspan=2, sticky="ew")
+        self.folder_frame.grid(row=5, column=0, columnspan=2, sticky="ew", pady=(18, 0))
         self.folder_frame.columnconfigure(0, weight=1)
-        tk.Frame(self.folder_frame, height=1, background=BORDER).grid(
-            row=0, column=0, columnspan=2, sticky="ew", pady=15
-        )
         ttk.Label(self.folder_frame, text="Save folder", style="FieldLabel.TLabel").grid(
-            row=1, column=0, columnspan=2, sticky="w", pady=(0, 6)
+            row=0, column=0, columnspan=2, sticky="w", pady=(0, 6)
         )
-        ttk.Entry(self.folder_frame, textvariable=self.folder_var).grid(row=2, column=0, sticky="ew")
+        ttk.Entry(self.folder_frame, textvariable=self.folder_var).grid(row=1, column=0, sticky="ew")
         ttk.Button(self.folder_frame, text="Browse…", command=self.choose_folder).grid(
-            row=2, column=1, sticky="ne", padx=(9, 0)
+            row=1, column=1, sticky="ne", padx=(8, 0)
         )
 
-        footer = ttk.Frame(workspace, padding=(18, 12, 18, 15), style="Card.TFrame")
-        footer.grid(row=2, column=0, sticky="ew", pady=(14, 0))
-        footer.columnconfigure(0, weight=1)
-        status = ttk.Frame(footer)
-        status.grid(row=0, column=0, sticky="ew", padx=(0, 20))
+        tk.Frame(form, height=1, background=BORDER).grid(
+            row=6, column=0, columnspan=2, sticky="ew", pady=(21, 16)
+        )
+        self.download_button = ttk.Button(
+            form, image=self.icons["download"], compound="left", style="Primary.TButton",
+            command=self.start_download,
+        )
+        self.download_button.grid(row=7, column=0, columnspan=2, sticky="w")
+
+        status = ttk.Frame(workspace, style="Workspace.TFrame", padding=(1, 0))
+        status.grid(row=2, column=0, sticky="ew", pady=(16, 0))
         status.columnconfigure(0, weight=1)
-        status_line = ttk.Label(status, textvariable=self.status_var, style="Help.TLabel", justify="left")
+        status_line = ttk.Label(status, textvariable=self.status_var, style="Status.TLabel", justify="left")
         status_line.grid(row=0, column=0, sticky="ew")
         status.bind("<Configure>", lambda event: status_line.configure(wraplength=max(120, event.width - 42)))
         ttk.Label(status, textvariable=self.progress_text, style="Percent.TLabel", anchor="e").grid(
@@ -228,11 +233,6 @@ class YouTubeDownloaderApp:
         )
         self.progress_bar = ProgressTrack(status, self.progress_var)
         self.progress_bar.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(8, 0))
-        self.download_button = ttk.Button(
-            footer, image=self.icons["download"], compound="left", style="Primary.TButton",
-            width=18, command=self.start_download,
-        )
-        self.download_button.grid(row=0, column=1, sticky="ne")
 
         self.source_controls = {
             self.load_button: ("youtube",),
@@ -1083,7 +1083,8 @@ class YouTubeDownloaderApp:
             self.link_help_label.grid()
         else:
             self.link_help_label.grid_remove()
-        self.download_button.configure(text=action)
+        icon = self.icons["external" if source == "scribd" else "download"]
+        self.download_button.configure(text=action, image=icon)
         self.status_var.set("Ready")
 
         for widget, sources in self.source_controls.items():
@@ -1091,6 +1092,11 @@ class YouTubeDownloaderApp:
                 widget.grid()
             else:
                 widget.grid_remove()
+
+        if source == "scribd":
+            self.progress_bar.grid_remove()
+        else:
+            self.progress_bar.grid()
 
         if source == "youtube":
             self.quality_group.grid(column=1, columnspan=1)
@@ -1101,6 +1107,18 @@ class YouTubeDownloaderApp:
             self.quality_label.configure(text="Model format")
             self.quality_combo["values"] = ["glTF (.zip)", "USDZ (.usdz)"]
             self.quality_var.set("glTF (.zip)")
+
+        self.root.after_idle(self._fit_minimum_size)
+
+    def _fit_minimum_size(self) -> None:
+        self.root.update_idletasks()
+        width = min(self.root.winfo_reqwidth(), self.root.winfo_screenwidth() - 32)
+        height = min(self.root.winfo_reqheight(), self.root.winfo_screenheight() - 64)
+        self.root.minsize(max(self.MIN_WIDTH, width), max(self.MIN_HEIGHT, height))
+
+    def _update_progress_text(self, *_args) -> None:
+        progress = self.progress_var.get()
+        self.progress_text.set(f"{progress:.0f}%" if self.is_downloading or progress else "")
 
     def _on_mode_changed(self, *_args) -> None:
         if self.source_var.get() == "youtube":
