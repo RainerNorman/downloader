@@ -1,8 +1,12 @@
 # -*- mode: python ; coding: utf-8 -*-
+from pathlib import Path
 from PyInstaller.utils.hooks import collect_all
 
 datas = [('downloader.ico', '.')]
 binaries = []
+native_pdf = Path('native/target/release/jpeg-pages-pdf.exe')
+if native_pdf.is_file():
+    binaries.append((str(native_pdf), '.'))
 hiddenimports = []
 tmp_ret = collect_all('yt_dlp')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]

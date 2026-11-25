@@ -1,6 +1,9 @@
 import io
+import os
 import re
 import shutil
+import struct
+import subprocess
 import tempfile
 import zipfile
 from contextlib import ExitStack
@@ -22,6 +25,7 @@ MAX_DOWNLOAD = 512 * 1024 * 1024
 MAX_IMAGE = 32 * 1024 * 1024
 MAX_PAGES = 1500
 MAX_HTML = 2 * 1024 * 1024
+JPEG_EXTENSIONS = {".jpg", ".jpeg"}
 
 
 class _PublishedPdfLinks(HTMLParser):
@@ -98,25 +102,84 @@ def create_pages_pdf(
         with tempfile.NamedTemporaryFile(dir=destination.parent, suffix=".part", delete=False) as file:
             temporary_pdf = Path(file.name)
         try:
-            pdf = Canvas(str(temporary_pdf), pageCompression=1)
-            pdf.setTitle(destination.stem)
-            for index, page in enumerate(pages, start=1):
-                report(f"Building PDF page {index} of {len(pages)}...", 35 + 64 * index // len(pages))
-                try:
-                    opener = archive.open(page) if archive else page.open("rb")
-                    with opener as image_file:
-                        data = image_file.read(MAX_IMAGE + 1)
-                    if len(data) > MAX_IMAGE:
-                        raise ValueError("Image exceeds the 32 MB page limit.")
-                    _add_page(pdf, data)
-                except (OSError, RuntimeError, ValueError) as exc:
-                    name = page.filename if archive else page.name
-                    raise ValueError(f"Page {index} ({name}): {exc}") from exc
-            pdf.save()
+            title = destination.stem
+            if not _write_jpeg_pdf(pages, archive, temporary_pdf, title, report):
+                pdf = Canvas(str(temporary_pdf), pageCompression=1)
+                pdf.setTitle(title)
+                for index, page in enumerate(pages, start=1):
+                    report(f"Building PDF page {index} of {len(pages)}...", 35 + 64 * index // len(pages))
+                    try:
+                        _add_page(pdf, _read_page(page, archive))
+                    except (OSError, RuntimeError, ValueError) as exc:
+                        name = page.filename if archive else page.name
+                        raise ValueError(f"Page {index} ({name}): {exc}") from exc
+                pdf.save()
             temporary_pdf.rename(destination)
         finally:
             temporary_pdf.unlink(missing_ok=True)
         return len(pages)
+
+
+def _read_page(page: Path | zipfile.ZipInfo, archive: zipfile.ZipFile | None) -> bytes:
+    with (archive.open(page) if archive else page.open("rb")) as image_file:
+        data = image_file.read(MAX_IMAGE + 1)
+    if len(data) > MAX_IMAGE:
+        raise ValueError("Image exceeds the 32 MB page limit.")
+    return data
+
+
+def _native_pdf_helper() -> Path | None:
+    root = Path(__file__).resolve().parent
+    executable = "jpeg-pages-pdf.exe" if os.name == "nt" else "jpeg-pages-pdf"
+    for candidate in (root / executable, root / "native" / "target" / "release" / executable):
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _write_jpeg_pdf(
+    pages: list[Path | zipfile.ZipInfo], archive: zipfile.ZipFile | None, path: Path, title: str,
+    report: Callable[[str, int], None],
+) -> bool:
+    helper = _native_pdf_helper()
+    if helper is None:
+        return False
+    suffixes = {PurePosixPath(page.filename if archive else page.name).suffix.lower() for page in pages}
+    if suffixes - JPEG_EXTENSIONS - {""}:
+        return False
+
+    try:
+        with subprocess.Popen(
+            [str(helper), str(path), title, str(len(pages))],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        ) as process:
+            try:
+                assert process.stdin is not None
+                for index, page in enumerate(pages, start=1):
+                    data = _read_page(page, archive)
+                    with Image.open(io.BytesIO(data)) as image:
+                        if (
+                            image.format != "JPEG"
+                            or image.mode not in ("L", "RGB")
+                            or image.getexif().get(274, 1) != 1
+                            or image.width * image.height > 25_000_000
+                        ):
+                            return False
+                        image.load()
+                        header = struct.pack("<4I", image.width, image.height, len(image.getbands()), len(data))
+                    process.stdin.write(header)
+                    process.stdin.write(data)
+                    report(f"Writing PDF page {index} of {len(pages)}...", 35 + 64 * index // len(pages))
+                process.stdin.close()
+                return process.wait(timeout=15) == 0
+            finally:
+                if process.poll() is None:
+                    process.kill()
+    except (OSError, ValueError, RuntimeError, zipfile.BadZipFile, Image.DecompressionBombError, subprocess.TimeoutExpired):
+        return False
 
 
 def _download(

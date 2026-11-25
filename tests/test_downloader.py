@@ -1,13 +1,14 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 from zipfile import ZipFile
 
 from PIL import Image
 from pypdf import PdfReader
 
 from downloader import YouTubeDownloaderApp
-from pages_pdf import create_pages_pdf
+from pages_pdf import _native_pdf_helper, create_pages_pdf
 
 
 class SourceLinksTest(unittest.TestCase):
@@ -60,3 +61,43 @@ class PagesPdfTest(unittest.TestCase):
                 create_pages_pdf(str(image), output, lambda *_: None)
             self.assertFalse(output.exists())
             self.assertEqual(list(root.glob("*.part")), [])
+
+    @unittest.skipUnless(_native_pdf_helper(), "Rust helper has not been built")
+    def test_native_export_preserves_jpeg_bytes_and_order(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive_path = root / "book.cbz"
+            output = root / "Seiten-\u00fc.pdf"
+            expected = []
+            with ZipFile(archive_path, "w") as archive:
+                for number, size, mode in ((2, (80, 40), "RGB"), (1, (40, 80), "L")):
+                    path = root / f"{number}.jpg"
+                    with Image.new(mode, size) as image:
+                        image.save(path)
+                    expected.insert(0, path.read_bytes())
+                    archive.write(path, path.name)
+
+            with patch("pages_pdf.Canvas", side_effect=AssertionError("Expected Rust writer")):
+                self.assertEqual(create_pages_pdf(str(archive_path), output, lambda *_: None), 2)
+            with output.open("rb") as file:
+                reader = PdfReader(file, strict=True)
+                self.assertEqual(reader.metadata.title, output.stem)
+                self.assertEqual([float(page.mediabox.width) for page in reader.pages], [421, 842])
+                self.assertEqual(
+                    [page.images[0].data for page in reader.pages],
+                    expected,
+                )
+
+    @unittest.skipUnless(_native_pdf_helper(), "Rust helper has not been built")
+    def test_rotated_jpeg_uses_normal_export(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / "rotated.jpg"
+            with Image.new("RGB", (40, 80)) as image:
+                exif = image.getexif()
+                exif[274] = 6
+                image.save(path, exif=exif)
+            output = root / "rotated.pdf"
+            self.assertEqual(create_pages_pdf(str(path), output, lambda *_: None), 1)
+            with output.open("rb") as file:
+                self.assertEqual(float(PdfReader(file).pages[0].mediabox.width), 842)

@@ -3,6 +3,7 @@ __pycache__/
 .venv/
 .build-venv/
 .pytest_cache/
+native/target/
 build/
 dist/
 downloads/

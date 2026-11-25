@@ -27,6 +27,8 @@ A Windows desktop app for saving media from links and turning page images into P
 
 **Pages to PDF:** Files in folders and archives sort numerically within their names (for example, `1.jpg`, `2.jpg`, `10.jpg`). Direct image links separated by spaces keep the order you enter. Each image fills its own PDF page without cropping.
 
+The Windows release contains a Rust writer that streams JPEG-only exports into the PDF without re-encoding the images. Mixed formats and JPEGs with EXIF rotation use the standard image exporter. Running from source also works without the Rust helper.
+
 ## Run from source
 
 Use 64-bit Python 3.14 for Windows with Tcl/Tk enabled. These commands use the virtual environment directly, so activation is optional.
@@ -42,9 +44,12 @@ py -3.14 -m venv .venv
 ## Test and build
 
 ~~~powershell
+cargo +1.100.0 build --locked --release --manifest-path native/Cargo.toml
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 .\.venv\Scripts\python.exe -m PyInstaller --noconfirm "YouTube Downloader.spec"
 ~~~
+
+To compile the helper, install [Rust with rustup](https://www.rust-lang.org/tools/install) and run `rustup toolchain install 1.100.0 --profile minimal` first. The Cargo command is optional for local builds. GitHub Actions includes the helper in the Windows release.
 
 The build produces `dist\Downloader.exe`. The executable uses system FFmpeg when needed. GitHub Actions runs the offline tests and builds the Windows executable. A version tag such as `v0.1.0` also publishes the executable under **Releases**.
 
