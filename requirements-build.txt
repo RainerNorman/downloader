@@ -1,0 +1,7 @@
+curl_cffi==0.16.3
+imageio-ffmpeg==0.6.0
+pillow==13.0.0
+pypdf==7.1.1
+pyinstaller==6.22.3
+reportlab==5.1.0
+yt-dlp==2026.8.19
